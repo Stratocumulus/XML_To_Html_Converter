@@ -108,7 +108,7 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
 
             if verbose:
                 print("vertical: ", vert.attrib['display_name'])
-                print("source url: ", vert.get('url_name'))
+                print("source url: ", vert_name)
 
             for problem in vert.findall('problem'):
                 prob_name = problem.get('url_name')
