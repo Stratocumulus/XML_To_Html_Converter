@@ -1,4 +1,4 @@
-import os, re
+import os, re, sys
 import xml.etree.ElementTree as ET
 from xmlToJson import xmlToJson
 from xmlToHtml import xmlToHtml
@@ -27,6 +27,19 @@ def stringToFilename(input_string):
 
     return sanitized_string
 
+def find_first_letter_index(s):
+    for index, char in enumerate(s):
+        if char.isalpha():
+            return index
+    return -1  # If no letter is found
+
+def get_substring_to_first_letter(s):
+    index = find_first_letter_index(s)
+    if index != -1:
+        return s[:index]
+    else:
+        return s 
+
 
 def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
     """
@@ -44,6 +57,8 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
     """
     verbose = True
     default_attempts = [2,1] # default number of attempts and corresponding points for problems
+    given_chapter_number = True
+    GIVEN_CHAPTER_NUMBER = "2"
 
     # Directory containing the local XML files
     sequential_directory = 'sequential'
@@ -68,8 +83,10 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
     # Search for which chapter we are processing
     pattern = r'\d{1,2}'
     chapter_number_str = re.search(pattern, chapter.attrib['display_name']).group()
+    if given_chapter_number:
+        chapter_number_str = GIVEN_CHAPTER_NUMBER
     # Search for the first match in the input string
-    output_directory = 'chapter_' + chapter_number_str
+    output_directory = 'assessment_' + chapter_number_str
     output_directory = os.path.join(output_base_directory, output_directory)
     # Create output directory
     os.makedirs(output_directory, exist_ok=True)
@@ -122,7 +139,18 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
                         print(child.tag, child.attrib)
                 
                 # create current problem output folder
-                prob_folder_name = stringToFilename(seq.attrib['display_name'] + '-' + vert.attrib['display_name'] + '-p' + prob.attrib['display_name'])
+                # prob_folder_name = stringToFilename(+ vert.attrib['display_name'][:2] + '-p' + prob.attrib['display_name'][:2])
+                first_letter_index = find_first_letter_index(seq.attrib['display_name'])
+                if first_letter_index != -1:
+                    substring = get_substring_to_first_letter(seq.attrib['display_name'])
+                else:
+                    substring = seq.attrib['display_name']
+                prob_folder_name = stringToFilename( substring + 'p' + prob.attrib['display_name'][:30])
+                # drop # : and ,
+                characters_to_remove = ['#', ':', ',', '(', ')', '\'']
+                for char in characters_to_remove:
+                    prob_folder_name = re.sub(re.escape(char), '', prob_folder_name)
+
                 output_prob_path = os.path.join(output_directory, prob_folder_name)
                 output_index = 1
                 conflict_flag = False
@@ -130,21 +158,30 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
                     output_prob_path = f"{output_prob_path}_{output_index}"
                     output_index += 1
                     conflict_flag = True
+
+                # drop # : and ,
+                characters_to_remove = ['#', ':', ',','(', ')', '\'']
+                for char in characters_to_remove:
+                    output_prob_path = re.sub(re.escape(char), '', output_prob_path)
+
+                
                 os.makedirs(output_prob_path, exist_ok=False)
 
                 # convert .xml file into .json .html (and .py for numerical response problems)
-                sub_question_title = question_title + f": {prob.attrib['display_name']}"
+                # sub_question_title = question_title + f": {prob.attrib['display_name']}"
+                # sub_question_title = question_title
+                sub_question_title = prob.attrib['display_name']
                 topic = f"hw{chapter_number_str}"
-                tags = [f"chapter_{chapter_number_str}"]
-                xmlToJson(question_title=sub_question_title, topic=topic, tags=tags, output_base_directory=output_prob_path)
+                tags = [f"hw{chapter_number_str}"]
+                xmlToJson(question_title=sub_question_title, topic=topic, tags=tags, output_base_directory=output_prob_path, source_url=prob_name)
                 xmlToHtml(prob_path=os.path.join(problem_directory, prob_name+'.xml'), output_base_directory=output_prob_path)
 
                 # save problem to zones in infoAssessment.json
                 prob_info_dict = dict()
                 if conflict_flag:
-                    prob_info_dict["id"] = 'chapter_' + chapter_number_str + '/' + prob_folder_name + f'_{output_index}'
+                    prob_info_dict["id"] = prob_folder_name + f'_{output_index}'
                 else:
-                    prob_info_dict["id"] = 'chapter_' + chapter_number_str + '/' + prob_folder_name 
+                    prob_info_dict["id"] = prob_folder_name 
                 prob_info_dict["points"] = default_attempts
                 seq_in_zone_dict['questions'].append(prob_info_dict)
         
@@ -160,9 +197,20 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
 
 
 if __name__ == "__main__":
-    chapter_xml_file = 'chapter/c1c0e5a497924a40b800bf69e96b4004.xml'  # Chapter 1
+    # chapter_xml_file = 'chapter/c1c0e5a497924a40b800bf69e96b4004.xml'  # Chapter 1
+    # chapter_xml_file = 'chapter\966fb80ae3eb485580e7d2cd7c228a87.xml' # 2
     # chapter_xml_file = 'chapter/48f7311ca92b4e2ca5479386627e4a06.xml' # chapter 3
+    # chapter\3e19e5b95bcb419da847d32747f25512.xml # 5
+    # chapter_xml_file = 'chapter/48ab731aeae546c4aa09ed8fea6f393f.xml' # 6
+    # chapter_xml_file = 'chapter/d7812e2686e642ff94abec910a452921.xml' # 9
+    # chapter_xml_file = 'chapter\dd20fb91353d4e2c99f866bbf5083218.xml' # 10
+    # chapter_xml_file = 'chapter/65aa9d6eea064a57859dd2f2f9e52f62.xml' # 11
+    chapter_xml_file = 'chapter/fafe3692bac9442f85c38bac9a918c0b.xml' # 12
+
+    # chapter\2aef3bf02e83479298835e00713e1cef.xml # 13
 
     output_base_directory = 'converter\output'
+
+    sys.stdout = open('converter/output/terminal_output.txt', 'w')
     fetchProblemFromChapter(chapter_xml_file, output_base_directory)
     

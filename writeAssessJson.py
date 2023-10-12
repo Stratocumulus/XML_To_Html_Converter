@@ -44,8 +44,9 @@ def writeAssessJson(assessment_title: str, assessment_number: str, zones: list, 
         {{
             "mode": "Public",
             "credit": 100,
-            "startDate": "2020-09-01T00:00:01",
-            "endDate": "2024-09-30T23:59:59"
+            "startDate": "2024-09-01T00:00:01",
+            "endDate": "2024-09-30T23:59:59",
+            "uids": []
         }}
     ],
 """
