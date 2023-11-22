@@ -17,7 +17,7 @@ def xmlToJson(question_title: str, topic: str, tags: list, output_base_directory
     # Constants and Variables
     verbose = False
     JSON_OUTPUT_FILENAME = "info.json"
-    use_random_uuid = False
+    use_random_uuid = True
 
 
     # Generate a random UUID (Version 4)
@@ -37,12 +37,13 @@ def xmlToJson(question_title: str, topic: str, tags: list, output_base_directory
     if use_random_uuid:
         json_output += f"""
     "uuid": "{random_uuid}",
+    "comment": "source url: {source_url}",
     "title": "{question_title}",
     "topic": "{topic}",
 """
     else: 
         json_output += f"""
-    "source_url(dont paste this)": "{source_url}",
+    "comment": "source url: {source_url}",
     "title": "{question_title}",
     "topic": "{topic}",
 """

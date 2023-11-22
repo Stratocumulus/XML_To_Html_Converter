@@ -46,16 +46,22 @@ def xmlToHtml(prob_path: str, output_base_directory: str):
         html_output = ""
         if label_element is not None:
             label_text = ET.tostring(label_element, encoding="unicode")
+            
             html_output += f"""
 <pl-question-panel>
 <p>{label_text}</p>
 </pl-question-panel>
 """ 
-
-            html_output += f"""
+            if problem_format == 'checkbox':
+                html_output += f"""
 <div class="card-body">
-    <pl-{problem_format} answers-name="multichoice_1" fixed-order=true partial-credit=true>
-""" # fix the order of choices
+    <pl-{problem_format} answers-name="multichoice_1" fixed-order=true partial-credit=true hide-letter-keys=true partial-credit-method="EDC">
+"""         
+            elif problem_format == 'multiple-choice':
+                html_output += f"""
+<div class="card-body">
+    <pl-{problem_format} answers-name="multichoice_1" fixed-order=true hide-letter-keys=true>
+"""         
 
         elif question_element is not None:
             
@@ -79,19 +85,26 @@ def xmlToHtml(prob_path: str, output_base_directory: str):
 </pl-question-panel>
 """
 
-
-        html_output += f"""
+        if problem_format == 'checkbox':
+            html_output += f"""
 <div class="card-body">
-    <pl-{problem_format} answers-name="multichoice_1" fixed-order=true partial-credit=true>
+    <pl-{problem_format} answers-name="multichoice_1" fixed-order=true partial-credit=true hide-letter-keys=true partial-credit-method="EDC">
 """
-    
-
+        elif problem_format == 'multiple-choice':
+            html_output += f"""
+<div class="card-body">
+    <pl-{problem_format} answers-name="multichoice_1" fixed-order=true hide-letter-keys=true>
+"""
 
 
         # parse the choices
         for choice in choices:
             is_correct = "true" if choice.get("correct") == "true" else "false"
-            choice_text = choice.text.strip()
+            choice_text = ""
+            for text_element in choice:
+                if text_element:
+                    choice_text += text_element.text
+            choice_text += choice.text.strip()
             html_output += f"      <pl-answer correct=\"{is_correct}\">{choice_text}</pl-answer>\n"
 
         html_output += f"""
@@ -124,8 +137,9 @@ def xmlToHtml(prob_path: str, output_base_directory: str):
     <div class="detailed-solution"> 
 """
             for explanation in explanations:
-                explanation_text = explanation.text.strip()
-                html_output += f"""
+                if explanation.text is not None:
+                    explanation_text = explanation.text.strip()
+                    html_output += f"""
     <p>{explanation_text}</p>
 """     
 
@@ -141,7 +155,9 @@ def xmlToHtml(prob_path: str, output_base_directory: str):
     # else if the problem requires numerical response
     elif "numericalresponse" in element_tags:
         # Extract relevant data from XML
-        main_question_text = root.find(".//p").text.strip()
+        main_question_text = ''
+        if root.find(".//p"): 
+            main_question_text = root.find(".//p").text.strip()
         numresponses = root.findall(".//numericalresponse")
         uls = root.findall(".//ul")
         hints = root.findall(".//hint")
@@ -152,10 +168,27 @@ def xmlToHtml(prob_path: str, output_base_directory: str):
         html_output = ""
         if label_element is not None:
             html_output = f"""
-    <pl-question-panel>
-    <p>{ET.tostring(label_element, encoding="unicode")}</p>
-    </pl-question-panel>
-    """
+<pl-question-panel>
+<p>{ET.tostring(label_element, encoding="unicode")}</p>
+"""
+            if main_question_text is not None:
+                question_paragraphs = []
+                start_iteration = False
+                for element in root.iter():
+                    if element.tag == 'p':
+                        start_iteration = True
+                    if start_iteration:
+                        if element.tag == 'p':
+                            question_paragraphs.append(element.text)
+                        else:
+                            break
+                for paragraph in question_paragraphs:
+                    html_output += f"""
+<p>{paragraph}</p>
+"""
+            html_output += f"""
+<pl-question-panel>
+"""         
         elif main_question_text is not None:
 
             question_paragraphs = []
@@ -308,23 +341,34 @@ def generate(data):
 
 if __name__ == "__main__":
     
+    # Solved:
     # prob_path = "problem/23fdec6639244a5b89ec47cbb45e4690.xml" # multiplechoiceresponse
     # prob_path = "problem/c1f3c02c62ec495fa469a2d9667915a8.xml" # choiceresponse (checkbox)
     # prob_path = "problem/c679b7a2b98e452bbc045fa054930402.xml" # single numresponse
     # prob_path = "problem/1c980d07a6bd4827a7b80a15a71e8033.xml" # multi numresponse
-    # prob_path = "problem/e18698bbf13c418cb1f0dee6e39be6dd.xml" # multi multichoice
+
     # prob_path = "problem/7b78dc044afd491a8d840ef6a0f2353e.xml" # multi problem discription
     # prob_path = "problem/0a48cdaf965c4986a3bba7a2be694ee4.xml" # multi explanation tabs
     # prob_path = "problem/2ebdb6e8d5fb4833bcd0bc0de7d0787a.xml" # multi problem description inside question tab
     # prob_path = "problem/5f15c73284a94eba8432c9ea43d672b3.xml" # cannot get hint for numerical problems, when hint wrapped by <div>
+    # prob_path = 'problem/17187761d14543b890824cebd1070c90.xml' # cannot get multichoice choice text
+    # prob_path = 'problem/c8d5184f08b64bd2b98ffc7c99d688a4.xml'
+    prob_path = 'problem/4f98532b39e6407d9db682b6382d4049.xml' # in problem description, <p> <label> coexist
+
+
     # TODO
     # why this one gets <label> inside <p>
     # converter\output\assessment_2\12_7_p2\question.html
+
+        # prob_path = "problem/e18698bbf13c418cb1f0dee6e39be6dd.xml" # multi multichoice
+        # also: "source url: 70366964042e43919e13fc6b7a87e7a9"
     
-    prob_path = "problem/d1138700044f4f48879c47f0c35984c6.xml" # problem description gets previous explanation
+    # prob_path = "problem/d1138700044f4f48879c47f0c35984c6.xml" # problem description gets previous explanation
 
 
     # prob_path = "problem/6ea9c88daf00404c8ac0018c4860dcda.xml" # programming problem
+
+    prob_path = "converter/temp.xml"
 
     output_base_directory = 'converter\output'
     xmlToHtml(prob_path, output_base_directory)

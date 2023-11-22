@@ -58,7 +58,7 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
     verbose = True
     default_attempts = [2,1] # default number of attempts and corresponding points for problems
     given_chapter_number = True
-    GIVEN_CHAPTER_NUMBER = "2"
+    GIVEN_CHAPTER_NUMBER = "3"
 
     # Directory containing the local XML files
     sequential_directory = 'sequential'
@@ -83,11 +83,12 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
     # Search for which chapter we are processing
     pattern = r'\d{1,2}'
     chapter_number_str = re.search(pattern, chapter.attrib['display_name']).group()
+    original_chapter_number = chapter_number_str
     if given_chapter_number:
         chapter_number_str = GIVEN_CHAPTER_NUMBER
     # Search for the first match in the input string
-    output_directory = 'assessment_' + chapter_number_str
-    output_directory = os.path.join(output_base_directory, output_directory)
+    relative_output_directory = 'c' + original_chapter_number
+    output_directory = os.path.join(output_base_directory, relative_output_directory)
     # Create output directory
     os.makedirs(output_directory, exist_ok=True)
     # now output_directory contains chapter number
@@ -104,15 +105,26 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
         seq_tree = ET.parse(seq_path)
         seq = seq_tree.getroot()
 
+        # fetch sequential title as sub topic folder name
+        sub_topic_number_match = re.search(r'\.(\d{1,2})', seq.attrib['display_name'])
+        if sub_topic_number_match:
+            sub_topic_number = sub_topic_number_match.group(1)
+            sub_topic = 's' + sub_topic_number
+        else:
+            sub_topic = 'prog'
+        sub_topic_directory = os.path.join(output_directory, sub_topic)
+
         # fetch sequential level meta-data
         seq_in_zone_dict = dict()
         seq_in_zone_dict["title"] = seq.attrib['display_name']
         seq_in_zone_dict["comment"] = f"comment for {seq.attrib['display_name']}"
         seq_in_zone_dict["questions"] = []
 
+        
         if verbose:
             print('-'*20)
             print("sequential: ", seq.attrib['display_name'])
+            print("seq source url: ", seq_name)
 
         for vertical in seq.findall('vertical'):
             vert_name = vertical.get('url_name')
@@ -140,18 +152,19 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
                 
                 # create current problem output folder
                 # prob_folder_name = stringToFilename(+ vert.attrib['display_name'][:2] + '-p' + prob.attrib['display_name'][:2])
-                first_letter_index = find_first_letter_index(seq.attrib['display_name'])
-                if first_letter_index != -1:
-                    substring = get_substring_to_first_letter(seq.attrib['display_name'])
-                else:
-                    substring = seq.attrib['display_name']
-                prob_folder_name = stringToFilename( substring + 'p' + prob.attrib['display_name'][:30])
+                # first_letter_index = find_first_letter_index(seq.attrib['display_name'])
+                # if first_letter_index != -1:
+                #     substring = get_substring_to_first_letter(seq.attrib['display_name'])
+                # else:
+                #     substring = seq.attrib['display_name']
+                # prob_folder_name = stringToFilename( substring + 'p' + prob.attrib['display_name'][:30])
+                prob_folder_name = stringToFilename('p' + prob.attrib['display_name'][:30])
                 # drop # : and ,
-                characters_to_remove = ['#', ':', ',', '(', ')', '\'']
+                characters_to_remove = ['#', ':', ',', '(', ')', '\'', '?']
                 for char in characters_to_remove:
                     prob_folder_name = re.sub(re.escape(char), '', prob_folder_name)
 
-                output_prob_path = os.path.join(output_directory, prob_folder_name)
+                output_prob_path = os.path.join(sub_topic_directory, prob_folder_name)
                 output_index = 1
                 conflict_flag = False
                 while os.path.exists(output_prob_path):
@@ -159,8 +172,8 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
                     output_index += 1
                     conflict_flag = True
 
-                # drop # : and ,
-                characters_to_remove = ['#', ':', ',','(', ')', '\'']
+                # drop # : and , ?
+                characters_to_remove = ['#', ':', ',','(', ')', '\'', '?']
                 for char in characters_to_remove:
                     output_prob_path = re.sub(re.escape(char), '', output_prob_path)
 
@@ -171,17 +184,18 @@ def fetchProblemFromChapter(chapter_xml_file: str, output_base_directory: str):
                 # sub_question_title = question_title + f": {prob.attrib['display_name']}"
                 # sub_question_title = question_title
                 sub_question_title = prob.attrib['display_name']
-                topic = f"hw{chapter_number_str}"
-                tags = [f"hw{chapter_number_str}"]
+                topic = f"chapter_{original_chapter_number}"
+                tags = [f"section_{sub_topic_number}"]
                 xmlToJson(question_title=sub_question_title, topic=topic, tags=tags, output_base_directory=output_prob_path, source_url=prob_name)
                 xmlToHtml(prob_path=os.path.join(problem_directory, prob_name+'.xml'), output_base_directory=output_prob_path)
 
                 # save problem to zones in infoAssessment.json
                 prob_info_dict = dict()
-                if conflict_flag:
-                    prob_info_dict["id"] = prob_folder_name + f'_{output_index}'
-                else:
-                    prob_info_dict["id"] = prob_folder_name 
+                # if conflict_flag:
+                #     prob_info_dict["id"] = relative_output_directory + '/' + prob_folder_name + f'_{output_index}'
+                # else:
+                prob_info_dict["id"] = relative_output_directory  + '/' + sub_topic  + '/' + prob_folder_name 
+
                 prob_info_dict["points"] = default_attempts
                 seq_in_zone_dict['questions'].append(prob_info_dict)
         
@@ -205,9 +219,15 @@ if __name__ == "__main__":
     # chapter_xml_file = 'chapter/d7812e2686e642ff94abec910a452921.xml' # 9
     # chapter_xml_file = 'chapter\dd20fb91353d4e2c99f866bbf5083218.xml' # 10
     # chapter_xml_file = 'chapter/65aa9d6eea064a57859dd2f2f9e52f62.xml' # 11
-    chapter_xml_file = 'chapter/fafe3692bac9442f85c38bac9a918c0b.xml' # 12
+    # chapter_xml_file = 'chapter/fafe3692bac9442f85c38bac9a918c0b.xml' # 12
 
-    # chapter\2aef3bf02e83479298835e00713e1cef.xml # 13
+
+    # chapter_xml_file = 'chapter/2aef3bf02e83479298835e00713e1cef.xml' # 13
+    # chapter_xml_file = 'chapter/a24e9e2ae23b49df9cc5cdb4a453ded5.xml' # 14
+    # chapter_xml_file = 'chapter/ac30d35b8d51479286e87957d73d69a7.xml' # 15
+    # chapter_xml_file = 'chapter/5dbdf3800516442a9fd85581d6efb779.xml' # 16
+    chapter_xml_file = 'chapter/812a849be74d480a9696df0ee62e03b8.xml' # 17
+    # chapter_xml_file = 'chapter/c1184b73d5a3438fa4dbc86ecbf3bebf.xml'
 
     output_base_directory = 'converter\output'
 
